@@ -3,6 +3,7 @@ using Xunit;
 using Amazon.SellingPartnerAPIAA;
 using System;
 using System.Net.Http;
+using RestSharp;
 
 namespace Amazon.SellingPartnerAPIAATests
 {
@@ -44,7 +45,7 @@ namespace Amazon.SellingPartnerAPIAATests
             string expectedStringToSign = "testStringToSign";
             mockAWSSignerHelper.Setup(signerHelper => signerHelper.InitializeHeaders(request))
                                .Returns(signingDate);
-            mockAWSSignerHelper.Setup(signerHelper => signerHelper.ExtractCanonicalURIParameters(Utils.GetResourceFromUri(request.RequestUri)))
+            mockAWSSignerHelper.Setup(signerHelper => signerHelper.ExtractCanonicalURIParameters(request))
                                .Returns("testURIParameters");
             mockAWSSignerHelper.Setup(signerHelper => signerHelper.ExtractCanonicalQueryString(request))
                                .Returns("testCanonicalQueryString");
@@ -64,7 +65,7 @@ namespace Amazon.SellingPartnerAPIAATests
             HttpRequestMessage actualRestRequest = sigV4SignerUnderTest.Sign(request);
 
             mockAWSSignerHelper.Verify(signerHelper => signerHelper.InitializeHeaders(request));
-            mockAWSSignerHelper.Verify(signerHelper => signerHelper.ExtractCanonicalURIParameters(Utils.GetResourceFromUri(request.RequestUri)));
+            mockAWSSignerHelper.Verify(signerHelper => signerHelper.ExtractCanonicalURIParameters(request));
             mockAWSSignerHelper.Verify(signerHelper => signerHelper.ExtractCanonicalQueryString(request));
             mockAWSSignerHelper.Verify(signerHelper => signerHelper.ExtractCanonicalHeaders(request));
             mockAWSSignerHelper.Verify(signerHelper => signerHelper.ExtractSignedHeaders(request));
@@ -84,6 +85,19 @@ namespace Amazon.SellingPartnerAPIAATests
                                                                                  signingDate));
 
             Assert.Equal(request, actualRestRequest);
+        }
+
+        [Fact]
+        public void TestExtractCanonicalURIParameters()
+        {
+            var expectedCanonicalUri = "/listings/2021-08-01/items/A2GP3WG5N6CP41/M_24.50_B00E5DSYL0_42.32_83%252C564_06%252F20";
+
+            var restRequest = new HttpRequestMessage();
+            restRequest.RequestUri = new Uri("https://sellingpartnerapi-na.amazon.com/listings/2021-08-01/items/A2GP3WG5N6CP41/{sku}?marketplaceIds=ATVPDKIKX0DER&issueLocale=&includedData=issues");
+            restRequest.Properties.Add("sku", "M_24.50_B00E5DSYL0_42.32_83,564_06/20");
+            var generatedCanonicalUri = (new AWSSignerHelper()).ExtractCanonicalURIParameters(restRequest);
+
+            Assert.Equal(expectedCanonicalUri, generatedCanonicalUri) ;
         }
     }
 }

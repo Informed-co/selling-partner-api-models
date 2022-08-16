@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Microsoft.AspNetCore.WebUtilities;
+using RestSharp;
 
 namespace Amazon.SellingPartnerAPIAA
 {
@@ -41,9 +42,13 @@ namespace Amazon.SellingPartnerAPIAA
         /// </summary>
         /// <param name="request">RestRequest</param>
         /// <returns>URI encoded version of absolute path</returns>
-        public virtual string ExtractCanonicalURIParameters(string resource)
+        public virtual string ExtractCanonicalURIParameters(HttpRequestMessage restRequest)
+        //public virtual string ExtractCanonicalURIParameters(string resource)
         {
+            string fullUri = restRequest.RequestUri.ToString();
+            string resource = Utils.GetResourceFromUri(restRequest.RequestUri);                
             string canonicalUri = string.Empty;
+
 
             //decode existing strings 
             resource = Uri.UnescapeDataString(resource);
@@ -58,27 +63,28 @@ namespace Amazon.SellingPartnerAPIAA
                 {
                     canonicalUri = Slash;
                 }
-                //IDictionary<string, string> pathParameters = request.Parameters
-                //        .Where(parameter => ParameterType.UrlSegment.Equals(parameter.Type))
-                //        .ToDictionary(parameter => parameter.Name.Trim().ToString(), parameter => parameter.Value.ToString());
+
+                //Split path at / into segments before replacing parameters to handle parameters that contain a /
+                IEnumerable<string> encodedSegments = resource.Split(new char[] { '/' }, StringSplitOptions.None);
 
                 //// Replace path parameter with actual value.
+                //// This needs to be performed on the segments that will go into the canonical string and on the request URI
                 //// Ex: /products/pricing/v0/items/{Asin}/offers -> /products/pricing/v0/items/AB12CD3E4Z/offers
-                //foreach (string parameter in pathParameters.Keys)
-                //{
-                //    resource = resource.Replace("{" + parameter + "}", pathParameters[parameter]);
-                //}
-
-                //Split path at / into segments
-                IEnumerable<string> encodedSegments = resource.Split(new char[] { '/' }, StringSplitOptions.None);
+                foreach (string parameter in restRequest.Properties.Keys)
+                {
+                    encodedSegments = encodedSegments.Select(segment => segment.Replace("{" + parameter + "}", (string)restRequest.Properties[parameter]));
+                    // Single encode the params in the request URL
+                    fullUri = fullUri.Replace("{" + parameter + "}", Utils.UrlEncode((string)restRequest.Properties[parameter]));
+                }                
 
                 // Encode twice
                 encodedSegments = encodedSegments.Select(segment => Utils.UrlEncode(segment));
                 encodedSegments = encodedSegments.Select(segment => Utils.UrlEncode(segment));
 
                 canonicalUri += string.Join(Slash, encodedSegments.ToArray());
+                restRequest.RequestUri = new Uri(fullUri);
             }
-
+            
             return canonicalUri;
         }
 
